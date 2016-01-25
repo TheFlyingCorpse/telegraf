@@ -7,18 +7,20 @@ The way this plugin works is that on load of Telegraf, the plugin will be handed
 The examples contained in this file have been found on the internet as counters used when performance monitoring Active Directory and IIS in perticular. There are a lot other good objects to monitor, if you know what to look for. This file is likely to be updated in the future with more examples for useful configurations for separate scenarios.
 
 ### Entry
-One entry consists of the TOML header to start with, `[[inputs.win_perfcounters.object]]`. This must follow before other plugins code, beneath the main win_perfcounters entry, `[[inputs.win_perfcounters]]`.
+A new configuration entry consists of the TOML header to start with, `[[inputs.win_perfcounters.object]]`. This must follow before other plugins configuration, beneath the main win_perfcounters entry, `[[inputs.win_perfcounters]]`.
 
-Following this is 3 required key/value pairs and the three optional parameters.
+Following this is 3 required key/value pairs and the three optional parameters and their usage.
 
 ### ObjectName
 **Required**
+
 ObjectName is the Object to query for, like Processor, DirectoryServices, LogicalDisk or similar.
 
 Example: `ObjectName = "LogicalDisk"`
 
 ### Instances
 **Required**
+
 Instances (this is an array) is the instances of a counter you would like returned, it can be one or more values. 
 
 Example, `Instances = ["C:","D:","E:"]` will return only for the instances C:, D: and E: where relevant. To get all instnaces of a Counter, use ["*"] only. By default any results containing _Total are stripped, unless this is specified as the wanted instance. Alternatively see the option IncludeTotal below.
@@ -26,7 +28,8 @@ Example, `Instances = ["C:","D:","E:"]` will return only for the instances C:, D
 Some Objects does not have instances to select from at all, here only one option is valid if you want data back, and that is to specify `Instances = ["------"]`.
 
 ### Counters
-**Require**
+**Required**
+
 Counters (this is an array) is the counters of the ObjectName you would like returned, it can also be one or more values.
 
 Example: `Counters = ["% Idle Time", "% Disk Read Time", "% Disk Write Time"]`
@@ -34,19 +37,27 @@ This must be specified for every counter you want the results of, it is not poss
 
 ### Measurement
 *Optional*
+
 This key is optional, if it is not set it will be win_perfcounters. In InfluxDB this is the key by which the returned data is stored underneath, so for ordering your data in a good manner, this is a good key to set with where you want your IIS and Disk results stored, separate from Processor results.
 
 Example: `Measurement = "win_disk"
 
 ### IncludeTotal
 *Optional* 
+
 This key is optional, it is a simple bool. If it is not set to true or included it is treated as false.
 This key only has an effect if Instances is set to "*" and you would also like all instances containg _Total returned, like "_Total", "0,_Total" and so on where applicable (Processor Information is one example).
 
 ### WarnOnMissing
 *Optional*
+
 This key is optional, it is a simple bool. If it is not set to true or included it is treated as false.
 This only has an effect on the first execution of the plugin, it will print out any ObjectName/Instance/Counter combinations asked for that does not match. Useful when debugging new configurations.
+
+### FailOnMissing
+*Internal*
+
+This key should not be used, it is for testing purposes only. It is a simple bool, if it is not set to true or included this is treaded as false. If this is set to true, the plugin will abort and end prematurely if any of the combinations of ObjectName/Instances/Counters are invalid.
 
 ## Examples
 
@@ -121,7 +132,7 @@ This only has an effect on the first execution of the plugin, it will print out 
     #IncludeTotal=false #Set to true to include _Total instance when querying for all (*).
     #WarnOnMissing = false # Print out when the performance counter is missing, either of object, counter or instance.
 ```
-### DFS Rerplication + Domain Controllers
+### DFS Replication + Domain Controllers
 ```
   [[inputs.win_perfcounters.object]]
     # AD, DFS R, Useful if the server hosts a DFS Replication folder or is a Domain Controller
@@ -152,13 +163,48 @@ This only has an effect on the first execution of the plugin, it will print out 
     #IncludeTotal=false #Set to true to include _Total instance when querying for all (*).
 
   [[inputs.win_perfcounters.object]]
+    # IIS, ASP.NET Applications
+    ObjectName = "ASP.NET Applications"
+    Counters = ["Cache Total Entries","Cache Total Hit Ratio","Cache Total Turnover Rate","Output Cache Entries","Output Cache Hits","Output Cache Hit Ratio","Output Cache Turnover Rate","Compilations Total","Errors Total/Sec","Pipeline Instance Count","Requests Executing","Requests in Application Queue","Requests/Sec"]
+    Instances = ["*"]
+    Measurement = "win_aspnet_app"
+    #IncludeTotal=false #Set to true to include _Total instance when querying for all (*).
+
+  [[inputs.win_perfcounters.object]]
+    # IIS, ASP.NET
+    ObjectName = "ASP.NET"
+    Counters = ["Application Restarts","Request Wait Time","Requests Current","Requests Queued","Requests Rejected"]
+    Instances = ["*"]
+    Measurement = "win_aspnet"
+    #IncludeTotal=false #Set to true to include _Total instance when querying for all (*).
+
+  [[inputs.win_perfcounters.object]]
+    # IIS, Web Service
+    ObjectName = "Web Service"
+    Counters = ["Get Requests/sec","Post Requests/sec","Connection Attempts/sec","Current Connections","ISAPI Extension Requests/sec"]
+    Instances = ["*"]
+    Measurement = "win_websvc"
+    #IncludeTotal=false #Set to true to include _Total instance when querying for all (*).
+
+  [[inputs.win_perfcounters.object]]
+    # Web Service Cache / IIS
+    ObjectName = "Web Service Cache"
+    Counters = ["URI Cache Hits %","Kernel: URI Cache Hits %","File Cache Hits %"]
+    Instances = ["*"]
+    Measurement = "win_websvc_cache"
+    #IncludeTotal=false #Set to true to include _Total instance when querying for all (*).
+```
+### Process
+```
+  [[inputs.win_perfcounters.object]]
     # Process metrics, in this case for IIS only
     ObjectName = "Process"
     Counters = ["% Processor Time","Handle Count","Private Bytes","Thread Count","Virtual Bytes","Working Set"]
     Instances = ["w3wp"]
     Measurement = "win_proc"
     #IncludeTotal=false #Set to true to include _Total instance when querying for all (*).
-
+```
+### .NET Montioring
   [[inputs.win_perfcounters.object]]
     # .NET CLR Exceptions, in this case for IIS only
     ObjectName = ".NET CLR Exceptions"
@@ -206,37 +252,4 @@ This only has an effect on the first execution of the plugin, it will print out 
     Instances = ["w3wp"]
     Measurement = "win_dotnet_security"
     #IncludeTotal=false #Set to true to include _Total instance when querying for all (*).
-
-  [[inputs.win_perfcounters.object]]
-    # IIS, ASP.NET Applications
-    ObjectName = "ASP.NET Applications"
-    Counters = ["Cache Total Entries","Cache Total Hit Ratio","Cache Total Turnover Rate","Output Cache Entries","Output Cache Hits","Output Cache Hit Ratio","Output Cache Turnover Rate","Compilations Total","Errors Total/Sec","Pipeline Instance Count","Requests Executing","Requests in Application Queue","Requests/Sec"]
-    Instances = ["*"]
-    Measurement = "win_aspnet_app"
-    #IncludeTotal=false #Set to true to include _Total instance when querying for all (*).
-
-  [[inputs.win_perfcounters.object]]
-    # IIS, ASP.NET
-    ObjectName = "ASP.NET"
-    Counters = ["Application Restarts","Request Wait Time","Requests Current","Requests Queued","Requests Rejected"]
-    Instances = ["*"]
-    Measurement = "win_aspnet"
-    #IncludeTotal=false #Set to true to include _Total instance when querying for all (*).
-
-  [[inputs.win_perfcounters.object]]
-    # IIS, Web Service
-    ObjectName = "Web Service"
-    Counters = ["Get Requests/sec","Post Requests/sec","Connection Attempts/sec","Current Connections","ISAPI Extension Requests/sec"]
-    Instances = ["*"]
-    Measurement = "win_websvc"
-    #IncludeTotal=false #Set to true to include _Total instance when querying for all (*).
-
-  [[inputs.win_perfcounters.object]]
-    # Web Service Cache / IIS
-    ObjectName = "Web Service Cache"
-    Counters = ["URI Cache Hits %","Kernel: URI Cache Hits %","File Cache Hits %"]
-    Instances = ["*"]
-    Measurement = "win_websvc_cache"
-    #IncludeTotal=false #Set to true to include _Total instance when querying for all (*).
-
 ```

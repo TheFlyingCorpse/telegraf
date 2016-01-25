@@ -1,8 +1,9 @@
-// +build windows
-
 package win_perfcounters
 
+// +build windows
+
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"syscall"
@@ -63,6 +64,7 @@ type perfobject struct {
 	Instances     []string
 	Measurement   string
 	WarnOnMissing bool
+	FailOnMissing bool
 	IncludeTotal  bool
 }
 
@@ -105,7 +107,7 @@ func (m *Win_PerfCounters) SampleConfig() string {
 	return sampleConfig
 }
 
-func (m *Win_PerfCounters) ParseConfig(metrics *itemList) {
+func (m *Win_PerfCounters) ParseConfig(metrics *itemList) error {
 	var query string
 
 	for _, PerfObject := range m.Object {
@@ -127,24 +129,41 @@ func (m *Win_PerfCounters) ParseConfig(metrics *itemList) {
 					}
 					AddItem(query, objectname, counter, instance, PerfObject.Measurement, PerfObject.IncludeTotal)
 				} else if exists == 3221228472 { // win.PDH_CSTATUS_NO_OBJECT
-					if PerfObject.WarnOnMissing {
+					if PerfObject.WarnOnMissing || PerfObject.FailOnMissing {
 						fmt.Printf("Performance Object '%s' does not exist in query: %s\n", objectname, query)
+						if PerfObject.FailOnMissing {
+							err := errors.New("Performance object does not exist")
+							return err
+						}
 					}
 				} else if exists == 3221228473 { //win.PDH_CSTATUS_NO_COUNTER
-					if PerfObject.WarnOnMissing {
+					if PerfObject.WarnOnMissing || PerfObject.FailOnMissing {
 						fmt.Printf("Counter '%s' does not exist in query: %s\n", counter, query)
+						if PerfObject.FailOnMissing {
+							err := errors.New("Counter in Performance object does not exist")
+							return err
+						}
 					}
 				} else if exists == 2147485649 { //win.PDH_CSTATUS_NO_INSTANCE
-					if PerfObject.WarnOnMissing {
+					if PerfObject.WarnOnMissing || PerfObject.FailOnMissing {
 						fmt.Printf("Instance '%s' does not exist in query: %s\n", instance, query)
+						if PerfObject.FailOnMissing {
+							err := errors.New("Instance in Performance object does not exist")
+							return err
+						}
 					}
 				} else {
 					fmt.Printf("Invalid result: %v, query: %s\n", exists, query)
+					if PerfObject.FailOnMissing {
+						err := errors.New("Invalid query for Performance Counters")
+						return err
+					}
 				}
 			}
 		}
 	}
 	configParsed = true
+	return nil
 }
 
 func (m *Win_PerfCounters) Cleanup(metrics *itemList) {
@@ -161,7 +180,11 @@ func (m *Win_PerfCounters) Gather(acc inputs.Accumulator) error {
 
 	// We only need to parse the config during the init, it uses the global variable after.
 	if configParsed == false {
-		m.ParseConfig(&metrics)
+		err := m.ParseConfig(&metrics)
+		if err != nil {
+			fmt.Println("Error occured during parsing the configuration")
+			return err
+		}
 	}
 
 	// When interrupt or terminate is called.

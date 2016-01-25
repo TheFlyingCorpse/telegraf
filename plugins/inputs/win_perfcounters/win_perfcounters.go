@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strings"
 	"syscall"
-	//"time"
 	"unsafe"
 
 	"os"
@@ -16,32 +15,31 @@ import (
 	"github.com/lxn/win"
 )
 
-var sampleConfig string = `#  By default this plugin gathers IO 
-#  Uncomment examples below or write your own as you see fit. If the system being polled for data does not have the Object at startup of the Telegraf agent, it will not be gathered.
-#  # Settings:
-#  #PrintValid = false # Print All matching performance counters
-#  [[inputs.win_perfcounters.object]]
-#    # HTTP Service request queues in the Kernel before being handed over to User Mode.
-#    ObjectName = "HTTP Service Request Queues"
-#    Instances = ["*"]
-#    Counters = ["CurrentQueueSize","RejectedRequests"]
-#    Measurement = "win_http_queues"
-#    #IncludeTotal=false #Set to true to include _Total instance when querying for all (*).
-#  [[inputs.win_perfcounters.object]]
-#    # Processor usage, alternative to native, reports on a per core.
-#    ObjectName = "Processor"
-#    Instances = ["*"]
-#    Counters = ["% Idle Time", "% Interrupt Time", "% Privileged Time", "% User Time", "% Processor Time"]
-#    Measurement = "win_cpu"
-#    #IncludeTotal=false #Set to true to include _Total instance when querying for all (*).
-#  [[inputs.win_perfcounters.object]]
-#    # Disk times and queues
-#    ObjectName = "LogicalDisk"
-#    Instances = ["*"]
-#    Counters = ["% Idle Time", "% Disk Time","% Disk Read Time", "% Disk Write Time", "% User Time", "Current Disk Queue Length"]
-#    Measurement = "win_disk"
-#    #IncludeTotal=false #Set to true to include _Total instance when querying for all (*).
-#    #WarnOnMissing = false # Print out when the performance counter is missing, either of object, counter or instance.
+var sampleConfig string = `  # By default this plugin returns basic CPU and Disk statistics. See the README file for more examples.
+  # Uncomment examples below or write your own as you see fit. If the system being polled for data does not have the Object at startup of the Telegraf agent, it will not be gathered.
+  # Settings:
+  #PrintValid = false # Print All matching performance counters
+  [[inputs.win_perfcounters.object]]
+    # Processor usage, alternative to native, reports on a per core.
+    ObjectName = "Processor"
+    Instances = ["*"]
+    Counters = ["% Idle Time", "% Interrupt Time", "% Privileged Time", "% User Time", "% Processor Time"]
+    Measurement = "win_cpu"
+    #IncludeTotal=false #Set to true to include _Total instance when querying for all (*).
+  [[inputs.win_perfcounters.object]]
+    # Disk times and queues
+    ObjectName = "LogicalDisk"
+    Instances = ["*"]
+    Counters = ["% Idle Time", "% Disk Time","% Disk Read Time", "% Disk Write Time", "% User Time", "Current Disk Queue Length"]
+    Measurement = "win_disk"
+    #IncludeTotal=false #Set to true to include _Total instance when querying for all (*).
+    #WarnOnMissing = false # Print out when the performance counter is missing, either of object, counter or instance.
+  [[inputs.win_perfcounters.object]]
+    ObjectName = "System"
+    Counters = ["Context Switches/sec","System Calls/sec"]
+    Instances = ["------"]
+    Measurement = "win_system"
+    #IncludeTotal=false #Set to true to include _Total instance when querying for all (*).
 #  [[inputs.win_perfcounters.object]]
 #    # Example query where the Instance portion must be removed to get data back, such as from the Memory object.
 #    ObjectName = "Memory"
@@ -49,137 +47,6 @@ var sampleConfig string = `#  By default this plugin gathers IO
 #    Instances = ["------"] # Use 6 x - to remove the Instance bit from the query.
 #    Measurement = "win_mem"
 #    #IncludeTotal=false #Set to true to include _Total instance when querying for all (*).
-#  [[inputs.win_perfcounters.object]]
-#    # Process metrics, in this case for IIS only
-#    ObjectName = "Process"
-#    Counters = ["% Processor Time","Handle Count","Private Bytes","Thread Count","Virtual Bytes","Working Set"]
-#    Instances = ["w3wp"]
-#    Measurement = "win_proc"
-#    #IncludeTotal=false #Set to true to include _Total instance when querying for all (*).
-#  [[inputs.win_perfcounters.object]]
-#    # System metrics
-#    ObjectName = "System"
-#    Counters = ["Context Switches/sec","System Calls/sec"]
-#    Instances = ["------"]
-#    Measurement = "win_system"
-#    #IncludeTotal=false #Set to true to include _Total instance when querying for all (*).
-#  [[inputs.win_perfcounters.object]]
-#    # .NET CLR Exceptions, in this case for IIS only
-#    ObjectName = ".NET CLR Exceptions"
-#    Counters = ["# of Exceps Thrown / sec"]
-#    Instances = ["w3wp"]
-#    Measurement = "win_dotnet_exceptions"
-#    #IncludeTotal=false #Set to true to include _Total instance when querying for all (*).
-#  [[inputs.win_perfcounters.object]]
-#    # .NET CLR Jit, in this case for IIS only
-#    ObjectName = ".NET CLR Jit"
-#    Counters = ["% Time in Jit","IL Bytes Jitted / sec"]
-#    Instances = ["w3wp"]
-#    Measurement = "win_dotnet_jit"
-#    #IncludeTotal=false #Set to true to include _Total instance when querying for all (*).
-#  [[inputs.win_perfcounters.object]]
-#    # .NET CLR Loading, in this case for IIS only
-#    ObjectName = ".NET CLR Loading"
-#    Counters = ["% Time Loading"]
-#    Instances = ["w3wp"]
-#    Measurement = "win_dotnet_loading"
-#    #IncludeTotal=false #Set to true to include _Total instance when querying for all (*).
-#  [[inputs.win_perfcounters.object]]
-#    # .NET CLR LocksAndThreads, in this case for IIS only
-#    ObjectName = ".NET CLR LocksAndThreads"
-#    Counters = ["# of current logical Threads","# of current physical Threads","# of current recognized threads","# of total recognized threads","Queue Length / sec","Total # of Contentions","Current Queue Length"]
-#    Instances = ["w3wp"]
-#    Measurement = "win_dotnet_locks"
-#    #IncludeTotal=false #Set to true to include _Total instance when querying for all (*).
-#  [[inputs.win_perfcounters.object]]
-#    # .NET CLR Memory, in this case for IIS only
-#    ObjectName = ".NET CLR Memory"
-#    Counters = ["% Time in GC","# Bytes in all Heaps","# Gen 0 Collections","# Gen 1 Collections","# Gen 2 Collections","# Induced GC","Allocated Bytes/sec","Finalization Survivors","Gen 0 heap size","Gen 1 heap size","Gen 2 heap size","Large Object Heap size","# of Pinned Objects"]
-#    Instances = ["w3wp"]
-#    Measurement = "win_dotnet_mem"
-#    #IncludeTotal=false #Set to true to include _Total instance when querying for all (*).
-#  [[inputs.win_perfcounters.object]]
-#    # .NET CLR Security, in this case for IIS only
-#    ObjectName = ".NET CLR Security"
-#    Counters = ["% Time in RT checks","Stack Walk Depth","Total Runtime Checks"]
-#    Instances = ["w3wp"]
-#    Measurement = "win_dotnet_security"
-#    #IncludeTotal=false #Set to true to include _Total instance when querying for all (*).
-#  [[inputs.win_perfcounters.object]]
-#    # IIS, ASP.NET Applications
-#    ObjectName = "ASP.NET Applications"
-#    Counters = ["Cache Total Entries","Cache Total Hit Ratio","Cache Total Turnover Rate","Output Cache Entries","Output Cache Hits","Output Cache Hit Ratio","Output Cache Turnover Rate","Compilations Total","Errors Total/Sec","Pipeline Instance Count","Requests Executing","Requests in Application Queue","Requests/Sec"]
-#    Instances = ["*"]
-#    Measurement = "win_aspnet_app"
-#    #IncludeTotal=false #Set to true to include _Total instance when querying for all (*).
-#  [[inputs.win_perfcounters.object]]
-#    # IIS, ASP.NET
-#    ObjectName = "ASP.NET"
-#    Counters = ["Application Restarts","Request Wait Time","Requests Current","Requests Queued","Requests Rejected"]
-#    Instances = ["*"]
-#    Measurement = "win_aspnet"
-#    #IncludeTotal=false #Set to true to include _Total instance when querying for all (*).
-#  [[inputs.win_perfcounters.object]]
-#    # IIS, Web Service
-#    ObjectName = "Web Service"
-#    Counters = ["Get Requests/sec","Post Requests/sec","Connection Attempts/sec","Current Connections","ISAPI Extension Requests/sec"]
-#    Instances = ["*"]
-#    Measurement = "win_websvc"
-#    #IncludeTotal=false #Set to true to include _Total instance when querying for all (*).
-#  [[inputs.win_perfcounters.object]]
-#    # Web Service Cache / IIS
-#    ObjectName = "Web Service Cache"
-#    Counters = ["URI Cache Hits %","Kernel: URI Cache Hits %","File Cache Hits %"]
-#    Instances = ["*"]
-#    Measurement = "win_websvc_cache"
-#    #IncludeTotal=false #Set to true to include _Total instance when querying for all (*).
-#  [[inputs.win_perfcounters.object]]
-#    # AD, DNS Server 
-#    ObjectName = "DNS"
-#    Counters = ["Dynamic Update Received","Dynamic Update Rejected","Recursive Queries","Recursive Queries Failure","Secure Update Failure","Secure Update Received","TCP Query Received","TCP Response Sent","UDP Query Received","UDP Response Sent","Total Query Received","Total Response Sent"]
-#    Instances = ["------"]
-#    Measurement = "win_dns"
-#    #IncludeTotal=false #Set to true to include _Total instance when querying for all (*).
-#  [[inputs.win_perfcounters.object]]
-#    # AD, DFS N, Useful if the server hosts a DFS Namespace or is a Domain Controller
-#    ObjectName = "DFS Namespace Service Referrals"
-#    Instances = ["*"]
-#    Counters = ["Requests Processed","Requests Failed","Avg. Response Time"]
-#    Measurement = "win_dfsn"
-#    #IncludeTotal=false #Set to true to include _Total instance when querying for all (*).
-#    #WarnOnMissing = false # Print out when the performance counter is missing, either of object, counter or instance.
-#  [[inputs.win_perfcounters.object]] 
-#    # AD, DFS R, Useful if the server hosts a DFS Replication folder or is a Domain Controller
-#    ObjectName = "DFS Replication Service Volumes"
-#    Instances = ["*"]
-#    Counters = ["Data Lookups","Database Commits"]
-#    Measurement = "win_dfsr"
-#    #IncludeTotal=false #Set to true to include _Total instance when querying for all (*).
-#    #WarnOnMissing = false # Print out when the performance counter is missing, either of object, counter or instance.
-#  [[inputs.win_perfcounters.object]]
-#    # AD
-#    ObjectName = "DirectoryServices"
-#    Instances = ["*"]
-#    Counters = ["Base Searches/sec","Database adds/sec","Database deletes/sec","Database modifys/sec","Database recycles/sec","LDAP Client Sessions","LDAP Searches/sec","LDAP Writes/sec"]
-#    Measurement = "win_ad" # Set an alternative measurement to win_perfcounters if wanted.
-#    #Instances = [""] # Gathers all instances by default, specify to only gather these
-#    #IncludeTotal=false #Set to true to include _Total instance when querying for all (*).
-#  [[inputs.win_perfcounters.object]]
-#    # AD
-#    ObjectName = "Security System-Wide Statistics"
-#    Instances = ["*"]
-#    Counters = ["NTLM Authentications","Kerberos Authentications","Digest Authentications"]
-#    Measurement = "win_ad"
-#    #IncludeTotal=false #Set to true to include _Total instance when querying for all (*).
-#  [[inputs.win_perfcounters.object]]
-#    # AD
-#    ObjectName = "Database"
-#    Instances = ["*"]
-#    Counters = ["Database Cache % Hit","Database Cache Page Fault Stalls/sec","Database Cache Page Faults/sec","Database Cache Size"]
-#    Measurement = "win_db"
-#    #IncludeTotal=false #Set to true to include _Total instance when querying for all (*).
-#
-
 `
 
 var gItemList = make(map[int]*item)

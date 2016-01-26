@@ -1,6 +1,6 @@
-package win_perfcounters
-
 // +build windows
+
+package win_perfcounters
 
 import (
 	"errors"

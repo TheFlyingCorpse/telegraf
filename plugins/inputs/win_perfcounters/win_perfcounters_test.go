@@ -239,6 +239,40 @@ func TestWinPerfcountersConfigGet5(t *testing.T) {
 	}
 }
 
+func TestWinPerfcountersConfigGet6(t *testing.T) {
+	validmetrics := itemList{}
+
+	var instances = make([]string, 1)
+	var counters = make([]string, 1)
+	var perfobjects = make([]perfobject, 1)
+
+	objectname := "System"
+	instances[0] = "------"
+	counters[0] = "Context Switches/sec"
+
+	var measurement string = "test"
+	var warnonmissing bool = false
+	var failonmissing bool = true
+	var includetotal bool = false
+
+	PerfObject := perfobject{
+		ObjectName:    objectname,
+		Instances:     instances,
+		Counters:      counters,
+		Measurement:   measurement,
+		WarnOnMissing: warnonmissing,
+		FailOnMissing: failonmissing,
+		IncludeTotal:  includetotal,
+	}
+
+	perfobjects[0] = PerfObject
+
+	m := Win_PerfCounters{PrintValid: false, TestName: "ConfigGet6", Object: perfobjects}
+
+	err := m.ParseConfig(&validmetrics)
+	require.NoError(t, err)
+}
+
 func TestWinPerfcountersConfigError1(t *testing.T) {
 	metrics := itemList{}
 

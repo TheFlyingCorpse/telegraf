@@ -57,9 +57,12 @@ var sampleConfig string = `  # By default this plugin returns basic CPU and Disk
 var gItemList = make(map[int]*item)
 
 var configParsed bool
+var testConfigParsed bool
+var testObject string
 
 type Win_PerfCounters struct {
 	PrintValid bool
+	TestName   string
 	Object     []perfobject
 }
 
@@ -71,7 +74,6 @@ type perfobject struct {
 	WarnOnMissing bool
 	FailOnMissing bool
 	IncludeTotal  bool
-	TestMode      bool
 }
 
 // Parsed configuration ends up here after it has been validated for valid
@@ -87,14 +89,12 @@ type item struct {
 	instance      string
 	measurement   string
 	include_total bool
-	testmode      bool
-	result        bool
 	handle        win.PDH_HQUERY
 	counterHandle win.PDH_HCOUNTER
 }
 
 func (m *Win_PerfCounters) AddItem(metrics *itemList, query string, objectName string, counter string, instance string,
-	measurement string, include_total bool, testmode bool) {
+	measurement string, include_total bool) {
 
 	var handle win.PDH_HQUERY
 	var counterHandle win.PDH_HCOUNTER
@@ -104,7 +104,7 @@ func (m *Win_PerfCounters) AddItem(metrics *itemList, query string, objectName s
 	_ = ret
 
 	temp := &item{query, objectName, counter, instance, measurement,
-		include_total, testmode, false, handle, counterHandle}
+		include_total, handle, counterHandle}
 	index := len(gItemList)
 	gItemList[index] = temp
 
@@ -114,7 +114,7 @@ func (m *Win_PerfCounters) AddItem(metrics *itemList, query string, objectName s
 	metrics.items[index] = temp
 }
 
-func InvalidObject(exists uint32, query string, PerfObject perfobject, instance string, counter string) error {
+func (m *Win_PerfCounters) InvalidObject(exists uint32, query string, PerfObject perfobject, instance string, counter string) error {
 	if exists == 3221228472 { // win.PDH_CSTATUS_NO_OBJECT
 		if PerfObject.FailOnMissing {
 			err := errors.New("Performance object does not exist")
@@ -159,6 +159,8 @@ func (m *Win_PerfCounters) SampleConfig() string {
 func (m *Win_PerfCounters) ParseConfig(metrics *itemList) error {
 	var query string
 
+	configParsed = true
+
 	if len(m.Object) > 0 {
 		for _, PerfObject := range m.Object {
 			for _, counter := range PerfObject.Counters {
@@ -178,16 +180,15 @@ func (m *Win_PerfCounters) ParseConfig(metrics *itemList) error {
 							fmt.Printf("Valid: %s\n", query)
 						}
 						m.AddItem(metrics, query, objectname, counter, instance,
-							PerfObject.Measurement, PerfObject.IncludeTotal,
-							PerfObject.TestMode)
+							PerfObject.Measurement, PerfObject.IncludeTotal)
 					} else {
-						err := InvalidObject(exists, query, PerfObject, instance, counter)
+						err := m.InvalidObject(exists, query, PerfObject, instance, counter)
 						return err
 					}
 				}
 			}
 		}
-		configParsed = true
+
 		return nil
 	} else {
 		err := errors.New("No performance objects configured!")
@@ -204,22 +205,36 @@ func (m *Win_PerfCounters) Cleanup(metrics *itemList) {
 	}
 }
 
-func (m *Win_PerfCounters) Collect() error {
-	
+func (m *Win_PerfCounters) CleanupTestMode() {
+	// Cleanup for the testmode.
+
+	for _, metric := range gItemList {
+		ret := win.PdhCloseQuery(metric.handle)
+		_ = ret
+	}
 }
 
 func (m *Win_PerfCounters) Gather(acc inputs.Accumulator) error {
 	metrics := itemList{}
 
+	// Both values are empty in normal use.
+	if m.TestName != testObject {
+		// Cleanup any handles before emptying the global variable containing valid queries.
+		m.CleanupTestMode()
+		gItemList = make(map[int]*item)
+		testObject = m.TestName
+		testConfigParsed = true
+		configParsed = false
+	}
+
 	// We only need to parse the config during the init, it uses the global variable after.
 	if configParsed == false {
+
 		err := m.ParseConfig(&metrics)
-		fmt.Printf("Objekt: %v\n", metrics)
 		if err != nil {
 			return err
 		}
 	}
-
 
 	// When interrupt or terminate is called.
 	c := make(chan os.Signal, 1)
@@ -273,7 +288,7 @@ func (m *Win_PerfCounters) Gather(acc inputs.Accumulator) error {
 							tags["instance"] = s
 						}
 						tags["objectname"] = metric.objectName
-						fields[string(metric.counter)] = c.FmtValue.DoubleValue
+						fields[string(metric.counter)] = float32(c.FmtValue.DoubleValue)
 
 						var measurement string
 						if metric.measurement == "" {
@@ -301,4 +316,3 @@ func (m *Win_PerfCounters) Gather(acc inputs.Accumulator) error {
 func init() {
 	inputs.Add("win_perfcounters", func() inputs.Input { return &Win_PerfCounters{} })
 }
-
